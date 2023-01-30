@@ -10,6 +10,9 @@ sys.path.append('./dkg_elgamal/build')
 from dkg_elgamal import *
 from zk import ZK, Proof
 
+
+GROUP_ID = -1
+
 # The distributed decryption has O(n^2) time complexity, so the whole procedure may take several hours.
 
 # constant
@@ -46,19 +49,19 @@ def compute(p):
 
 ######################## 处理命令行参数 ########################
 # 从命令行获取当前节点id
-myid = int(sys.argv[1])   
-# 绑定的端口  
+myid = int(sys.argv[1])
+# 绑定的端口
 port_base = 10000
 myPort = port_base + myid
 # 发电方数量
 producerNum = int(sys.argv[2])
 # 总节点列表
-strArgs = sys.argv[3].replace('[',' ').replace(']',' ').replace(',',' ').split() 
+strArgs = sys.argv[3].replace('[',' ').replace(']',' ').replace(',',' ').split()
 totalList = [int(i) for i in strArgs]
 # 发电方列表
-producerList = [totalList[i] for i in range(producerNum)]    
+producerList = [totalList[i] for i in range(producerNum)]
 # 用电方列表
-consumerList = [totalList[i+producerNum] for i in range(len(totalList) - producerNum)]   
+consumerList = [totalList[i+producerNum] for i in range(len(totalList) - producerNum)]
 # 总节点数
 n = len(totalList)
 
@@ -73,7 +76,7 @@ if lower == 0:
     producer = True
 
 
-# 建立连接 
+# 建立连接
 # 还是一样p2p  所有节点进行通信  只修改ip和portbase
 recv_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 recv_socket.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1)
@@ -88,7 +91,7 @@ send_conn = dict()
 def idxToId(idx):
     if idx < len(producerList):
         return producerList[idx]
-    else:  
+    else:
         return consumerList[idx-len(producerList)]
 for i in range(n):
     if i < len(producerList):   # 发电方
@@ -97,7 +100,7 @@ for i in range(n):
             for j in range(n-1):
                 print(j)
                 connect, (host, myPort) = recv_socket.accept()
-                recv_conn.append(connect)  
+                recv_conn.append(connect)
             print("recv complete")
         else:   # 不是自己
             print("begin to send conn ", myid)
@@ -113,7 +116,7 @@ for i in range(n):
         if (not producer) and idxToId(i) == myid:   # 是自己
             for j in range(n-1):
                 connect, (host, myPort) = recv_socket.accept()
-                recv_conn.append(connect)  
+                recv_conn.append(connect)
         else:   # 自己是发电方
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             send_conn[i] = sock
@@ -147,7 +150,7 @@ for i in range(n):
             for j in range(n-1):
                 print(j)
                 connect, (host, myPort) = recv_socket.accept()
-                recv_conn.append(connect)  
+                recv_conn.append(connect)
             print("recv complete")
         else:   # 不是自己
             print("begin to send conn ", myid)
@@ -163,7 +166,7 @@ for i in range(n):
         if (not producer) and idxToId(i) == myid:   # 是自己
             for j in range(n-1):
                 connect, (host, myPort) = recv_socket.accept()
-                recv_conn.append(connect)  
+                recv_conn.append(connect)
         else:   # 自己是发电方
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             send_conn[i] = sock
@@ -537,7 +540,7 @@ for k in bar:
         if (False in S) == False:
             total_rounds = k
             break
-        
+
         #####################################################
         # This is for debug use
         """
@@ -579,7 +582,7 @@ for k in bar:
         if E.max() < ERROR_THRESHOLD:
             total_rounds = k
             break
-        
+
         cost = compute(P_k)
         if myid == 0:
             total_cost = cost
@@ -682,6 +685,21 @@ file.write(str(pi.save()) + "\n")
 file.write("\n")
 
 
+def save(path, evidence):
+    out = open('/zkpevidence/{}/{}'.format(GROUP_ID, path))
+    import struct
+    for byte in evidence.save():
+        out.write(struct.pack('B', byte))
+    out.flush()
+    out.close()
+
+out = open('/log/{}/groupidprocess{}.log'.format(GROUP_ID, myid), 'w')
+out.write('范围零知识证明生成开始时间戳: {}'.format(prove_start_time))
+out.write('范围零知识证明生成结束时间戳: {}'.format(prove_end_time))
+out.write('范围零知识证明验证开始时间戳: {}'.format(verify_start_time))
+out.write('范围零知识证明验证结束时间戳: {}'.format(prove_end_time))
+save('范围零知识证明', pi)
+
 # transaction balance proof
 
 # exchange p and rand
@@ -735,8 +753,8 @@ if producer == True:
             # file.write("max eq error: " + str(max_eq_error) + "\n")
             E1 = E_epsilon2 - E # not too large
             E2 = E + E_epsilon2 # not too small
-            # 
-            # pi1 和 pi2 
+            #
+            # pi1 和 pi2
             pi1 = z2.zk_prover(PK, E1, int(EPSILON2 * RANK2) - power, Scalar.from_i32(0) - rand)
             pi2 = z2.zk_prover(PK, E2, power + int(EPSILON2 * RANK2), rand)
             prove_end_time = time.time()
@@ -752,6 +770,12 @@ if producer == True:
             file.write("verify time(s): " + str(verify_end_time - verify_start_time) + "\n")
             file.write("proof size of the transaction(bytes): " + str(pi1.size + pi2.size) + "\n")
             file.write("\n")
+            out.write('第{}方与第{}方求和零知识证明生成开始时间戳: {}'.format(myid, j, prove_start_time))
+            out.write('第{}方与第{}方求和零知识证明生成结束时间戳: {}'.format(myid, j, prove_end_time))
+            out.write('第{}方与第{}方求和零知识证明验证开始时间戳: {}'.format(myid, j, verify_start_time))
+            out.write('第{}方与第{}方求和零知识证明验证结束时间戳: {}'.format(myid, j, verify_end_time))
+            save('第{}方与第{}方求和零知识证明1', pi1)
+            save('第{}方与第{}方求和零知识证明2', pi2)
         else:
             my_eq_proof[j][0] = Proof(L2)
             my_eq_proof[j][1] = Proof(L2)
@@ -759,6 +783,9 @@ else:
     for j in range(n):
         my_eq_proof[j][0] = Proof(L2)
         my_eq_proof[j][1] = Proof(L2)
+
+out.flush()
+out.close()
 
 # broadcast limit proofs
 recv_limit_proof = np.empty(n, dtype=Proof)
